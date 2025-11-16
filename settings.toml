@@ -1,0 +1,48 @@
+# Pico Multi-Input Agent Configuration
+# Edit this file to configure your device
+
+# WiFi Settings
+wifi_ssid = "YourWiFiNetwork"
+wifi_password = "YourPassword"
+backup_ssid = "BackupNetwork"
+backup_password = "BackupPassword"
+
+# Fallback AP mode (if WiFi fails)
+ap_ssid = "Pico-Input-Agent"
+ap_password = "PicoAgent123"
+
+# Security
+api_key = "change-this-secure-key"
+
+# USB Configuration
+# Options: "keyboard", "mouse", "keyboard_mouse"
+usb_mode = "keyboard_mouse"
+
+# Jitter Settings (seconds)
+jitter_interval = 30
+jitter_enabled = false
+
+# Logging
+# Options: "DEBUG", "INFO", "WARN", "ERROR"
+log_level = "INFO"
+
+# Performance
+adaptive_chunking = true
+chunk_size = 256
+
+# Hardware Buttons (GPIO pin numbers)
+button1_pin = 15
+button1_script = "macro1"
+button2_pin = 14
+button2_action = "toggle_jitter"
+
+# OTA Updates
+enable_ota = true
+
+# Network
+mdns_hostname = "pico"
+http_port = 80
+mcp_port = 8080
+
+# Typing Speed (ms between keystrokes)
+typing_delay = 10

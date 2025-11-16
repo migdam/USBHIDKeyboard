@@ -1,0 +1,8 @@
+# Hello World Macro
+# Simple text typing example
+
+type "Hello, World!"
+press ENTER
+wait 500
+type "This is the Pico Multi-Input Agent"
+press ENTER

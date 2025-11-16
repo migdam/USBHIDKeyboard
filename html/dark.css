@@ -1,0 +1,31 @@
+/* Dark Theme */
+
+body.dark-mode {
+    --bg-primary: #1e1e1e;
+    --bg-secondary: #2d2d2d;
+    --bg-tertiary: #3d3d3d;
+    --text-primary: #e0e0e0;
+    --text-secondary: #a0a0a0;
+    --border-color: #444;
+    --shadow: 0 2px 8px rgba(0,0,0,0.5);
+}
+
+body.dark-mode textarea,
+body.dark-mode input,
+body.dark-mode select {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border-color: var(--border-color);
+}
+
+body.dark-mode .key-btn,
+body.dark-mode .dpad-btn {
+    background: var(--bg-secondary);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+body.dark-mode .modal-content {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+}

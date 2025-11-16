@@ -1,0 +1,30 @@
+# Navigation Keys Test
+# Tests arrow keys and special keys
+
+type "Navigation test:"
+press ENTER
+
+press RIGHT
+press RIGHT
+press RIGHT
+wait 200
+
+press DOWN
+wait 200
+
+press LEFT
+press LEFT
+press LEFT
+wait 200
+
+press UP
+wait 500
+
+press HOME
+wait 200
+press END
+wait 200
+
+press PAGE_DOWN
+wait 200
+press PAGE_UP

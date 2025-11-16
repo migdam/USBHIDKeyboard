@@ -1,0 +1,15 @@
+# Example Loop Macro
+# Demonstrates repeat functionality
+
+type "Starting loop..."
+press ENTER
+wait 1000
+
+repeat 5 {
+    type "Loop iteration"
+    press ENTER
+    wait 500
+}
+
+type "Loop complete!"
+press ENTER

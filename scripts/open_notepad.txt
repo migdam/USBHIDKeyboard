@@ -1,0 +1,16 @@
+# Open Notepad (Windows)
+# Opens Notepad and types a message
+
+# Open Run dialog
+press WINDOWS
+wait 200
+type "notepad"
+wait 200
+press ENTER
+wait 1000
+
+# Type message
+type "This text was typed by Pico Multi-Input Agent!"
+press ENTER
+press ENTER
+type "A versatile USB HID automation device."

@@ -1,0 +1,21 @@
+# Mouse Test Macro
+# Demonstrates mouse control
+
+# Draw a square with mouse
+move 100 0
+wait 500
+move 0 100
+wait 500
+move -100 0
+wait 500
+move 0 -100
+wait 500
+
+# Click in center
+click left
+wait 500
+
+# Scroll test
+scroll 5
+wait 500
+scroll -5
