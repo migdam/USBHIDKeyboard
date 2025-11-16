@@ -15,37 +15,104 @@ import os
 
 
 class ScriptParser:
-    """Parses macro DSL"""
+    """Parses macro DSL with multi-line block support"""
 
     @staticmethod
     def parse(script_text):
         """
-        Parse script into command list
+        Parse script into command list with repeat block support
 
-        Returns: List of (command, args) tuples
+        Returns: List of (command, args, line_no) tuples
         """
         commands = []
         lines = script_text.strip().split('\n')
+        i = 0
 
-        for line_no, line in enumerate(lines, 1):
-            line = line.strip()
+        while i < len(lines):
+            line = lines[i].strip()
+            line_no = i + 1
 
             # Skip empty lines and comments
             if not line or line.startswith('#'):
+                i += 1
                 continue
 
             try:
-                cmd = ScriptParser._parse_line(line)
-                if cmd:
-                    commands.append(cmd)
+                # Check for repeat block
+                if line.startswith('repeat '):
+                    # Parse repeat count
+                    if '{' in line:
+                        parts = line.split('{')
+                        count = int(parts[0].replace('repeat', '').strip())
+                    else:
+                        count = int(line.replace('repeat', '').strip())
+
+                    # Find matching closing brace
+                    block_lines = []
+                    brace_count = 1 if '{' in line else 0
+                    i += 1
+
+                    # Look for opening brace if not on same line
+                    if brace_count == 0:
+                        while i < len(lines):
+                            if lines[i].strip() == '{':
+                                brace_count = 1
+                                i += 1
+                                break
+                            i += 1
+
+                    # Collect block contents
+                    while i < len(lines) and brace_count > 0:
+                        block_line = lines[i].strip()
+                        if block_line == '}':
+                            brace_count -= 1
+                            if brace_count == 0:
+                                break
+                        elif '{' in block_line:
+                            brace_count += 1
+
+                        if brace_count > 0:
+                            block_lines.append(block_line)
+                        i += 1
+
+                    # Parse block contents into sub-commands
+                    if block_lines:
+                        # Add repeat start marker
+                        commands.append(('repeat_start', count, line_no))
+
+                        # Parse each line in block
+                        for block_line in block_lines:
+                            if block_line and not block_line.startswith('#'):
+                                cmd = ScriptParser._parse_line(block_line)
+                                if cmd:
+                                    commands.append((cmd[0], cmd[1], line_no))
+
+                        # Add repeat end marker
+                        commands.append(('repeat_end', None, line_no))
+                    else:
+                        # Empty repeat block
+                        commands.append(('repeat_start', count, line_no))
+                        commands.append(('repeat_end', None, line_no))
+                else:
+                    # Regular command
+                    cmd = ScriptParser._parse_line(line)
+                    if cmd:
+                        commands.append((cmd[0], cmd[1], line_no))
+
             except Exception as e:
                 raise SyntaxError(f"Line {line_no}: {e}")
+
+            i += 1
 
         return commands
 
     @staticmethod
     def _parse_line(line):
         """Parse a single command line"""
+        # Handle closing brace (for block end detection)
+        if line == '}':
+            return None
+
         # type "text"
         if line.startswith('type '):
             text = line[5:].strip()
@@ -64,14 +131,6 @@ class ScriptParser:
             ms = int(line[5:].strip())
             return ('wait', ms / 1000.0)  # Convert to seconds
 
-        # repeat N { ... }
-        elif line.startswith('repeat '):
-            parts = line[7:].split('{')
-            count = int(parts[0].strip())
-            # Note: This is simplified - full implementation would need
-            # multi-line block parsing
-            return ('repeat', count)
-
         # click button
         elif line.startswith('click '):
             button = line[6:].strip()
@@ -80,6 +139,8 @@ class ScriptParser:
         # move dx dy
         elif line.startswith('move '):
             parts = line[5:].strip().split()
+            if len(parts) < 2:
+                raise SyntaxError("move requires dx and dy")
             dx = int(parts[0])
             dy = int(parts[1])
             return ('move', (dx, dy))
@@ -209,22 +270,15 @@ class ScriptEngine:
 
         # Check if done
         if self.pc >= len(self.commands):
-            # Check repeat stack
-            if self.repeat_stack:
-                start_pc, remaining = self.repeat_stack.pop()
-                if remaining > 1:
-                    self.repeat_stack.append((start_pc, remaining - 1))
-                    self.pc = start_pc
-                else:
-                    self.running = False
-                    print("Script completed")
-            else:
-                self.running = False
-                print("Script completed")
+            self.running = False
+            print("Script completed")
             return
 
         # Execute current command
-        cmd, args = self.commands[self.pc]
+        cmd_tuple = self.commands[self.pc]
+        cmd = cmd_tuple[0]
+        args = cmd_tuple[1]
+        line_no = cmd_tuple[2] if len(cmd_tuple) > 2 else 0
 
         try:
             if cmd == 'type':
@@ -236,9 +290,26 @@ class ScriptEngine:
             elif cmd == 'wait':
                 self.wait_until = time.monotonic() + args
 
-            elif cmd == 'repeat':
-                # Push repeat context
-                self.repeat_stack.append((self.pc + 1, args))
+            elif cmd == 'repeat_start':
+                # Mark start of repeat block
+                # args = count
+                self.repeat_stack.append({
+                    'start_pc': self.pc + 1,
+                    'remaining': args,
+                    'line_no': line_no
+                })
+
+            elif cmd == 'repeat_end':
+                # Check if we should repeat
+                if self.repeat_stack:
+                    context = self.repeat_stack[-1]
+                    if context['remaining'] > 1:
+                        # Repeat again
+                        context['remaining'] -= 1
+                        self.pc = context['start_pc'] - 1  # Will be incremented below
+                    else:
+                        # Done repeating
+                        self.repeat_stack.pop()
 
             elif cmd == 'click':
                 self.usb.click_mouse(args)
@@ -251,7 +322,7 @@ class ScriptEngine:
                 self.usb.scroll_mouse(args)
 
         except Exception as e:
-            print(f"Script execution error: {e}")
+            print(f"Script execution error at line {line_no}: {e}")
             self.errors += 1
             self.running = False
             return

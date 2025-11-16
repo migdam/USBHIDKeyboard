@@ -6,7 +6,14 @@ Auto-recovery and connection monitoring
 import time
 import wifi
 import socketpool
-import mdns
+
+# Try to import mdns - may not be available in all CircuitPython builds
+try:
+    import mdns
+    MDNS_AVAILABLE = True
+except ImportError:
+    MDNS_AVAILABLE = False
+    print("WARNING: mdns module not available, mDNS will be disabled")
 
 
 class WiFiManager:
@@ -75,6 +82,10 @@ class WiFiManager:
 
     def _setup_mdns(self):
         """Setup mDNS responder"""
+        if not MDNS_AVAILABLE:
+            print("mDNS not available, skipping")
+            return
+
         try:
             hostname = self.settings.get("mdns_hostname", "pico")
             self.mdns_server = mdns.Server(wifi.radio)
@@ -95,6 +106,12 @@ class WiFiManager:
             password = self.settings.get("ap_password", "PicoAgent123")
 
             print(f"Starting AP mode: {ssid}")
+
+            # Check if start_ap is available
+            if not hasattr(wifi.radio, 'start_ap'):
+                print("AP mode not supported by this CircuitPython build")
+                return False
+
             wifi.radio.start_ap(ssid, password)
 
             self.pool = socketpool.SocketPool(wifi.radio)
@@ -102,7 +119,10 @@ class WiFiManager:
             self.current_network = ssid
 
             print(f"AP started: {ssid}")
-            print(f"IP: {wifi.radio.ipv4_address_ap}")
+
+            # Check if ipv4_address_ap attribute exists
+            if hasattr(wifi.radio, 'ipv4_address_ap'):
+                print(f"IP: {wifi.radio.ipv4_address_ap}")
 
             return True
 
@@ -163,7 +183,12 @@ class WiFiManager:
         # Verify connection is still active
         try:
             if self.state == self.STATE_AP_MODE:
-                return wifi.radio.ap_active
+                # Check if ap_active attribute exists
+                if hasattr(wifi.radio, 'ap_active'):
+                    return wifi.radio.ap_active
+                else:
+                    # Fallback - assume connected if in AP mode
+                    return True
             else:
                 return wifi.radio.ipv4_address is not None
         except:

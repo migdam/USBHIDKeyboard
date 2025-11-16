@@ -89,18 +89,31 @@ class JitterEngine:
         if (now - self.last_jitter) < self.interval:
             return
 
-        # Perform jitter movement
-        if self.phase == 0:
-            # Move +1 pixel right
-            self.mouse.move(1, 0)
-            self.phase = 1
-        else:
-            # Move -1 pixel left (compensate)
-            self.mouse.move(-1, 0)
-            self.phase = 0
-            self.jitter_count += 1
+        # Perform jitter movement with error handling
+        try:
+            if self.phase == 0:
+                # Move +1 pixel right
+                success = self.mouse.move(1, 0)
+                if success:
+                    self.phase = 1
+                else:
+                    # Mouse move failed, don't advance phase
+                    print("Jitter: mouse move failed")
+            else:
+                # Move -1 pixel left (compensate)
+                success = self.mouse.move(-1, 0)
+                if success:
+                    self.phase = 0
+                    self.jitter_count += 1
+                else:
+                    # Mouse move failed, don't advance phase
+                    print("Jitter: mouse compensation failed")
 
-        self.last_jitter = now
+            self.last_jitter = now
+
+        except Exception as e:
+            print(f"Jitter error: {e}")
+            # Don't advance phase on error to maintain symmetry
 
     def stats(self):
         """Get jitter statistics"""

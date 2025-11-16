@@ -364,18 +364,58 @@ class APIServer:
             conn, addr = self.socket.accept()
             conn.settimeout(2.0)
 
-            # Read request
+            # Read request headers
             data = b""
+            header_end = -1
+
             while True:
                 try:
                     chunk = conn.recv(1024)
                     if not chunk:
                         break
                     data += chunk
-                    if b"\r\n\r\n" in data:
+
+                    # Check if we've received full headers
+                    header_end = data.find(b"\r\n\r\n")
+                    if header_end != -1:
                         break
-                except:
+                except Exception as e:
                     break
+
+            # Parse headers to check for Content-Length
+            if header_end != -1:
+                headers_bytes = data[:header_end]
+                try:
+                    headers_text = headers_bytes.decode('utf-8', errors='ignore')
+                    content_length = 0
+
+                    # Find Content-Length header
+                    for line in headers_text.split('\r\n'):
+                        if line.lower().startswith('content-length:'):
+                            try:
+                                content_length = int(line.split(':', 1)[1].strip())
+                            except:
+                                pass
+                            break
+
+                    # Read remaining body if needed
+                    if content_length > 0:
+                        body_start = header_end + 4
+                        body_received = len(data) - body_start
+
+                        # Read remaining body
+                        while body_received < content_length:
+                            try:
+                                chunk = conn.recv(min(1024, content_length - body_received))
+                                if not chunk:
+                                    break
+                                data += chunk
+                                body_received += len(chunk)
+                            except:
+                                break
+
+                except Exception as e:
+                    print(f"Body read error: {e}")
 
             if data:
                 self.requests += 1
@@ -390,7 +430,10 @@ class APIServer:
                     self.errors += 1
 
                 # Send response
-                conn.send(response.build())
+                try:
+                    conn.send(response.build())
+                except:
+                    pass
 
             conn.close()
 

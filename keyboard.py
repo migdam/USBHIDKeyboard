@@ -18,6 +18,10 @@ class KeyboardDriver:
     CHUNK_SIZES = [128, 256, 512]
     DEFAULT_CHUNK_SIZE = 256
 
+    # Queue limits to prevent memory exhaustion
+    MAX_QUEUE_SIZE = 10  # Maximum number of text items in queue
+    MAX_TEXT_LENGTH = 100 * 1024  # 100 KB per text item
+
     # Special key mapping
     SPECIAL_KEYS = {
         "ENTER": Keycode.ENTER,
@@ -87,11 +91,25 @@ class KeyboardDriver:
 
         Args:
             text: String to type
+
+        Returns:
+            bool: True if queued, False if queue full or text too long
         """
         if not text:
-            return
+            return False
+
+        # Check queue size limit
+        if len(self.queue) >= self.MAX_QUEUE_SIZE:
+            print(f"Keyboard queue full ({self.MAX_QUEUE_SIZE} items)")
+            return False
+
+        # Check text length limit
+        if len(text) > self.MAX_TEXT_LENGTH:
+            print(f"Text too long ({len(text)} > {self.MAX_TEXT_LENGTH} bytes)")
+            return False
 
         self.queue.append(text)
+        return True
 
     def type_key(self, key_name):
         """

@@ -38,10 +38,17 @@ class ButtonHandler:
         self.buttons = []
         self._setup_buttons()
 
-        # State tracking
-        self.last_press_time = {}
-        self.press_count = {}
-        self.long_press_handled = {}
+        # State tracking (per button)
+        self.button_state = {}  # Consolidated state per button
+
+        # States: 'idle', 'pressed', 'released_waiting', 'long_press_triggered'
+        for btn in self.buttons:
+            self.button_state[btn["name"]] = {
+                "state": "idle",
+                "press_start": 0,
+                "release_time": 0,
+                "long_press_handled": False
+            }
 
     def _setup_buttons(self):
         """Setup GPIO buttons from settings"""
@@ -102,60 +109,66 @@ class ButtonHandler:
     def tick(self):
         """
         Poll buttons (called by scheduler)
+        Non-blocking state machine implementation
         """
-        now = time.monotonic_ns() // 1_000_000  # Convert to ms
+        try:
+            now = time.monotonic() * 1000  # Convert to ms
+        except AttributeError:
+            # Fallback for older CircuitPython
+            now = time.monotonic() * 1000
 
         for button in self.buttons:
             name = button["name"]
             pin = button["pin"]
+            state = self.button_state[name]
 
             # Check if button is pressed (active low)
             is_pressed = not pin.value
 
-            if is_pressed:
-                # Check if this is a new press
-                if name not in self.last_press_time:
-                    self.last_press_time[name] = now
-                    self.press_count[name] = 1
-                    self.long_press_handled[name] = False
+            # State machine
+            if state["state"] == "idle":
+                if is_pressed:
+                    # Button pressed - transition to pressed state
+                    state["state"] = "pressed"
+                    state["press_start"] = now
+                    state["long_press_handled"] = False
 
-                else:
-                    # Check for long press
-                    press_duration = now - self.last_press_time[name]
-
+            elif state["state"] == "pressed":
+                if is_pressed:
+                    # Still pressed - check for long press
+                    press_duration = now - state["press_start"]
                     if press_duration >= self.LONG_PRESS_THRESHOLD:
-                        if not self.long_press_handled[name]:
+                        if not state["long_press_handled"]:
                             self._handle_long_press(button)
-                            self.long_press_handled[name] = True
+                            state["long_press_handled"] = True
+                            state["state"] = "long_press_triggered"
+                else:
+                    # Button released
+                    if not state["long_press_handled"]:
+                        # Start waiting for potential double press
+                        state["state"] = "released_waiting"
+                        state["release_time"] = now
+                    else:
+                        # Long press was handled, return to idle
+                        state["state"] = "idle"
 
-            else:
-                # Button released
-                if name in self.last_press_time:
-                    press_duration = now - self.last_press_time[name]
+            elif state["state"] == "released_waiting":
+                if is_pressed:
+                    # Second press detected - double press!
+                    self._handle_double_press(button)
+                    state["state"] = "idle"
+                else:
+                    # Check if double-press window expired
+                    wait_duration = now - state["release_time"]
+                    if wait_duration >= self.DOUBLE_PRESS_WINDOW:
+                        # Single press confirmed
+                        self._handle_single_press(button)
+                        state["state"] = "idle"
 
-                    # Ignore if long press was handled
-                    if not self.long_press_handled[name]:
-                        # Check for double press
-                        if name in self.press_count:
-                            if self.press_count[name] == 1:
-                                # Wait for potential second press
-                                time.sleep(self.DOUBLE_PRESS_WINDOW / 1000.0)
-
-                                # Check again
-                                if not pin.value:
-                                    # Second press detected
-                                    self._handle_double_press(button)
-                                    self.press_count[name] = 0
-                                else:
-                                    # Single press
-                                    self._handle_single_press(button)
-
-                    # Reset state
-                    del self.last_press_time[name]
-                    if name in self.press_count:
-                        del self.press_count[name]
-                    if name in self.long_press_handled:
-                        del self.long_press_handled[name]
+            elif state["state"] == "long_press_triggered":
+                if not is_pressed:
+                    # Long press released, return to idle
+                    state["state"] = "idle"
 
 
 # Global button handler
